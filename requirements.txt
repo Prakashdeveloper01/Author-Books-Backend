@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+logfire
+python-dotenv
+sqlalchemy
+pymysql
+
+cryptography
+python-multipart
+redis
+pyJWT
