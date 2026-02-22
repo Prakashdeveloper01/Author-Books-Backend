@@ -27,6 +27,12 @@ app = FastAPI(
 )
 
 
+@app.get("/", tags=["Health"])
+async def root():
+    """Root health check endpoint."""
+    return {"status": "ok", "message": "Backend is running"}
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Backend health check endpoint."""
@@ -48,3 +54,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
     expose_headers=["Authorization", "Content-Disposition"],
 )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 7999))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port)
