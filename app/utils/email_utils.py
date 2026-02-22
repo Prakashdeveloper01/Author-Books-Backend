@@ -26,16 +26,17 @@ def send_email(to_email: str, subject: str, html_content: str):
         msg.attach(MIMEText(html_content, "html"))
 
         # Connect to SMTP server
-        # Note: If SSL is required from start, use SMTP_SSL.
-        # Here we assume STARTTLS pattern if TLS is True, or plain/SSL based on port/config usually.
-        # Adjusting logic to be robust.
+        host = CONFIG_SETTINGS.SMTP_HOST
+        port = CONFIG_SETTINGS.SMTP_PORT
+
+        logger.info(
+            f"Connecting to SMTP server at {host}:{port} (SSL: {CONFIG_SETTINGS.SMTP_SSL}, TLS: {CONFIG_SETTINGS.SMTP_TLS})"
+        )
 
         if CONFIG_SETTINGS.SMTP_SSL:
-            server = smtplib.SMTP_SSL(
-                CONFIG_SETTINGS.SMTP_HOST, CONFIG_SETTINGS.SMTP_PORT
-            )
+            server = smtplib.SMTP_SSL(host, port, timeout=10)
         else:
-            server = smtplib.SMTP(CONFIG_SETTINGS.SMTP_HOST, CONFIG_SETTINGS.SMTP_PORT)
+            server = smtplib.SMTP(host, port, timeout=10)
             if CONFIG_SETTINGS.SMTP_TLS:
                 server.starttls()
 
@@ -44,13 +45,17 @@ def send_email(to_email: str, subject: str, html_content: str):
                 server.login(CONFIG_SETTINGS.SMTP_USER, CONFIG_SETTINGS.SMTP_PASSWORD)
             server.send_message(msg)
 
-        logger.info(f"Email sent to {to_email}")
+        logger.info(f"Email sent successfully to {to_email}")
     except smtplib.SMTPAuthenticationError as e:
         logger.error(f"SMTP Authentication Error: {e}")
-        error_msg = str(e)
-        if "Application-specific password required" in error_msg:
+        raise e
+    except OSError as e:
+        logger.error(
+            f"Network error when connecting to {CONFIG_SETTINGS.SMTP_HOST}:{CONFIG_SETTINGS.SMTP_PORT}: {e}"
+        )
+        if e.errno == 101:
             logger.error(
-                "GMAIL AUTH ERROR: You need an App Password. Go to https://myaccount.google.com/apppasswords"
+                "Network is unreachable. This often means the outbound port is blocked or variables are missing in Railway Dashboard."
             )
         raise e
     except Exception as e:
