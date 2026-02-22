@@ -27,4 +27,15 @@ class UserResponse(CustomModel):
 
 class UserProfileResponse(UserResponse):
     joined_at: str | None = Field(default=None)
+    profile_picture: str | None = Field(default=None)
+    tagline: str | None = Field(default="Discovering new worlds, one page at a time.")
+    level: int = Field(default=1)
     stats: dict | None = Field(default=None)
+    achievements: list | None = Field(default=None)
+    recent_history: list | None = Field(default=None)
+
+
+class UserProfileUpdateRequest(CustomModel):
+    profile_picture: str | None = Field(default=None)
+    tagline: str | None = Field(default=None)
+    preferences: list | None = Field(default=None)

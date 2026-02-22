@@ -5,7 +5,15 @@ from typing import Annotated
 
 from app.database.main.mysql import get_db
 from app.api.auth.service import AuthService
-from app.api.auth.schemas import UserLoginResponse, SendOTPRequest, VerifyOTPRequest
+from app.api.auth.schemas import (
+    UserLoginResponse,
+    SendOTPRequest,
+    VerifyOTPRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+)
+from app.dependencies.authentication import get_current_user
+from app.utils.schema_utils import JWTPayloadSchema
 
 auth_router = APIRouter()
 
@@ -32,3 +40,27 @@ async def verify_otp_endpoint(
     db: Annotated[Session, Depends(get_db)],
 ):
     return await AuthService(db).verify_otp(request.email, request.otp_code)
+
+
+@auth_router.post("/logout")
+async def logout_endpoint(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[JWTPayloadSchema, Depends(get_current_user)],
+):
+    return await AuthService(db).logout(current_user)
+
+
+@auth_router.post("/forgot-password")
+async def forgot_password_endpoint(
+    request: ForgotPasswordRequest,
+    db: Annotated[Session, Depends(get_db)],
+):
+    return await AuthService(db).forgot_password(request.email)
+
+
+@auth_router.post("/reset-password")
+async def reset_password_endpoint(
+    request: ResetPasswordRequest,
+    db: Annotated[Session, Depends(get_db)],
+):
+    return await AuthService(db).reset_password(request)

@@ -1,5 +1,5 @@
 from app.config import CONFIG_SETTINGS
-from app.api.auth.schemas import UserLoginResponse
+from app.api.auth.schemas import UserLoginResponse, ResetPasswordRequest
 from app.models import TblUsers
 from sqlalchemy.orm import Session
 from app.utils.schema_utils import JWTPayloadSchema
@@ -124,3 +124,54 @@ class AuthService:
         self.db.commit()
 
         return {"message": "OTP verified successfully"}
+
+    async def logout(self, current_user: JWTPayloadSchema):
+        """Logout user by revoking tokens."""
+        await JWTService().revoke_token(current_user.uuid)
+        return {"message": "Logged out successfully"}
+
+    async def forgot_password(self, email: str):
+        """Initiate forgot password process by sending an OTP."""
+        encrypted_email = encrypt(email)
+        user = self.db.query(TblUsers).filter(TblUsers.email == encrypted_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return await self.send_otp(email)
+
+    async def reset_password(self, request: ResetPasswordRequest):
+        """Reset password using OTP."""
+        from app.models import TblOTPCodes
+        from datetime import datetime
+        from app.utils.crypto_utils import hash_password
+
+        if request.new_password != request.confirm_password:
+            raise HTTPException(status_code=400, detail="Passwords do not match")
+
+        encrypted_email = encrypt(request.email)
+        otp_record = TblOTPCodes.get_latest_by_email(self.db, encrypted_email)
+
+        if not otp_record:
+            raise HTTPException(status_code=400, detail="OTP not found")
+
+        if otp_record.otp_code != request.otp_code:
+            raise HTTPException(status_code=400, detail="Invalid OTP")
+
+        if otp_record.verify:
+            raise HTTPException(status_code=400, detail="OTP already verified")
+
+        if (datetime.utcnow() - otp_record.created_at).total_seconds() > 300:
+            raise HTTPException(status_code=400, detail="OTP expired")
+
+        # Mark OTP as verified
+        otp_record.verify = True
+
+        # update password
+        user = self.db.query(TblUsers).filter(TblUsers.email == encrypted_email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user.password = hash_password(request.new_password)
+        self.db.commit()
+
+        return {"message": "Password reset successfully"}

@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     EMAILS_FROM_EMAIL: str = ""
     EMAILS_FROM_NAME: str = ""
 
+    ROOT_PATH: str = ""
+
 
 def get_settings(env: str = "local") -> Settings:
     """

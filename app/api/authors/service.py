@@ -1,4 +1,3 @@
-from app.api.authors.schemas import UserResponse
 from app.utils.crypto_utils import encrypt
 from app.utils.crypto_utils import hash_password
 from app.api.auth.service import AuthService
@@ -11,7 +10,7 @@ from app.api.authors.schemas import UserRequest
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.utils.schema_utils import JWTPayloadSchema
-from app.api.authors.schemas import UserProfileResponse
+from app.api.authors.schemas import UserProfileResponse, UserProfileUpdateRequest
 from app.models.main.books import TblBooks
 from app.models.main.reviews import TblReviews
 from app.models.main.books_downloads import TblBookDownloads
@@ -56,10 +55,16 @@ class AuthorService:
             )
 
         profile_data = UserProfileResponse.model_validate(data)
-        profile_data.joined_at = data.created_at.strftime("%Y-%m-%d")  # Format date
+        profile_data.joined_at = data.created_at.strftime("Joined %Y")
+
+        profile_data.level = 1
+        profile_data.tagline = "Discovering new worlds, one page at a time."
 
         # Calculate Stats
         stats = {}
+        recent_history = []
+        achievements = []
+
         if data.type == "author":
             total_books = (
                 self.db.query(func.count(TblBooks.book_id))
@@ -76,16 +81,72 @@ class AuthorService:
                 "total_books": total_books or 0,
                 "total_downloads": total_downloads or 0,
             }
-        elif data.type == "reviewer":
+        elif data.type == "reviewer" or data.type == "reader":
+            achievements.append(
+                {
+                    "title": "Read books and submit reviews to earn badges!",
+                    "icon": "badge",
+                }
+            )
             total_reviews = (
                 self.db.query(func.count(TblReviews.review_id))
                 .filter(TblReviews.reviewer_id == data.usr_id)
                 .scalar()
             )
-            stats = {"total_reviews": total_reviews or 0}
+            stats = {
+                "books_read": total_reviews or 0,
+                "points": (total_reviews or 0) * 10 if total_reviews else 1,
+                "current_streak": 0,
+                "rank": "Unranked",
+            }
+
+            recent_reviews = (
+                self.db.query(TblReviews, TblBooks.title)
+                .join(TblBooks, TblReviews.book_id == TblBooks.book_id)
+                .filter(TblReviews.reviewer_id == data.usr_id)
+                .order_by(TblReviews.created_at.desc())
+                .limit(5)
+                .all()
+            )
+            for review, book_title in recent_reviews:
+                recent_history.append(
+                    {
+                        "title": book_title,
+                        "preview": f"{review.comment[:50]}..."
+                        if review.comment
+                        else "No comment",
+                        "id": review.review_id,
+                    }
+                )
 
         profile_data.stats = stats
+        profile_data.achievements = achievements
+        profile_data.recent_history = recent_history
 
         return CustomResponse(
             status="1", status_code=200, message="User profile", data=profile_data
         )
+
+    async def update_profile(self, request: UserProfileUpdateRequest):
+        """Update user profile."""
+        import json
+
+        data = TblUsers.get_by_uuid(self.current_user.uuid, self.db)
+        if not data:
+            return CustomResponse(
+                status="-1", status_code=404, message="User not found", data=None
+            )
+
+        if request.profile_picture is not None:
+            data.profile_picture = request.profile_picture
+
+        if request.tagline is not None:
+            data.tagline = request.tagline
+
+        if request.preferences is not None:
+            data.preferences = json.dumps(request.preferences)
+
+        data.updated_at = datetime.utcnow()
+        self.db.commit()
+
+        return await self.get_profile()

@@ -5,7 +5,11 @@ from typing import Annotated
 from sqlalchemy.orm import Session
 from app.database.main.mysql import get_db
 from app.api.authors.service import UserService
-from app.api.authors.schemas import UserRequest, UserProfileResponse
+from app.api.authors.schemas import (
+    UserRequest,
+    UserProfileResponse,
+    UserProfileUpdateRequest,
+)
 from fastapi import APIRouter, Depends
 
 author_router = APIRouter()
@@ -25,3 +29,12 @@ async def get_profile(
     current_user: Annotated[JWTPayloadSchema, Depends(get_current_user)],
 ):
     return await AuthorService(db, current_user).get_profile()
+
+
+@author_router.put("/profile", response_model=CustomResponse[UserProfileResponse])
+async def update_profile(
+    request: UserProfileUpdateRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[JWTPayloadSchema, Depends(get_current_user)],
+):
+    return await AuthorService(db, current_user).update_profile(request)
