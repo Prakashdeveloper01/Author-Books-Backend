@@ -76,7 +76,7 @@ class AuthService:
         from app.models import TblOTPCodes
         from app.utils.email_utils import send_email
 
-        otp_code = str(random.randint(100000, 999999)) if CONFIG_SETTINGS.ENV == "production" else "123456"
+        otp_code = str(random.randint(100000, 999999)) if CONFIG_SETTINGS.APP_ENV == "production" else "123456"
 
         # Save to DB
         TblOTPCodes.create(self.db, encrypt(email), otp_code)
@@ -87,7 +87,7 @@ class AuthService:
         # Given the previous context was generic SMTP setup, usually async is better but let's stick to direct call or threadpool.
         # send_email is blocking (smtplib).
         # We should run it in a threadpool to avoid blocking event loop.
-        if CONFIG_SETTINGS.ENV == "production":
+        if CONFIG_SETTINGS.APP_ENV == "production":
             from fastapi.concurrency import run_in_threadpool
 
             html_content = create_otp_email_template(otp_code)
